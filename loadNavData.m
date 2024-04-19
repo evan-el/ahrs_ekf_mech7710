@@ -1,0 +1,22 @@
+function [data, dt, gps_course, gps_course_time] = loadNavData(filename)
+%LOADNAVDATA Summary of this function goes here
+%   Detailed explanation goes here
+
+    vecNav_data = load("normal_vecNav.mat");
+
+    accel = vecNav_data.vecNav.acc';
+    gyro  = vecNav_data.vecNav.gyr';
+    mag = vecNav_data.vecNav.mag';
+
+    shortest_index = min([length(accel), length(gyro), length(mag)]);
+
+    data = [accel(1:shortest_index, :) gyro(1:shortest_index, :) mag(1:shortest_index, :)];
+    dt = mean(diff(vecNav_data.vecNav.time));
+
+    UBlox_data = load("normal_UBlox.mat");
+    gps_course = UBlox_data.GPS.course.route;
+    gps_course_time = UBlox_data.GPS.course.time;
+    gps_course_time = gps_course_time - gps_course_time(1);
+
+end
+
