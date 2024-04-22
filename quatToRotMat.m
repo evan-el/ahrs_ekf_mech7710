@@ -5,5 +5,9 @@ function rot_mat = quatToRotMat(q)
     rot_mat = [q(1)^2+q(2)^2-q(3)^2-q(4)^2    2*(q(2)*q(3)-q(1)*q(4))   2*(q(2)*q(4)+q(1)*q(3));
                2*(q(2)*q(3)+q(1)*q(4))      q(1)^2-q(2)^2+q(3)^2-q(4)^2    2*(q(3)*q(4)-q(1)*q(2));
                2*(q(2)*q(4)-q(1)*q(3))  2*(q(1)*q(4)+q(3)*q(4))     q(1)^2-q(2)^2-q(3)^2+q(4)^2];
+
+    rot_mat(:,1) = rot_mat(:,1)./norm(rot_mat(:,1));
+    rot_mat(:,2) = rot_mat(:,2)./norm(rot_mat(:,2));
+    rot_mat(:,3) = rot_mat(:,3)./norm(rot_mat(:,3));
 end
 

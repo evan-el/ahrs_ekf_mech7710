@@ -13,14 +13,25 @@ clc
 % [data, true_orientation] = simImuData(dt);
 
 accel = data(:, 1:3);
+% gyro = deg2rad(data(:, 4:6));
 gyro = data(:, 4:6);
 mag = data(:, 7:9);
+
+% mag calibration pre-processing step
+[cal_data, ~, ~, ~] = loadNavData("data/6_28 Data/6-28_Mag_Cal_vecNav.mat");
+mag_cal_data = data(:, 7:9);
+[A, b, expmfs] = magcal(mag_cal_data);
+
+% produce corrected mag data
+mag = (mag - b)*A;
 
 % initial rotation matrix, normalize columns
 C_init = [cross(cross(accel(1,:)', mag(1,:)'), accel(1,:)') cross(accel(1,:)',mag(1,:)') accel(1,:)'];
 C_init(:, 1) = C_init(:,1)./norm(C_init(:,1));
 C_init(:, 2) = C_init(:,2)./norm(C_init(:,2));
 C_init(:, 3) = C_init(:,3)./norm(C_init(:,3));
+
+gyro_int(:,1) = [deg2rad(-90); deg2rad(50); deg2rad(-50)];
 
 q_hat(:, 1) = [(1/2)*sqrt(C_init(1,1)+C_init(2,2)+C_init(3,3)+1);
                (1/2)*sign(C_init(3,2)-C_init(2,3))*sqrt(C_init(1,1)-C_init(2,2)-C_init(3,3)+1);
@@ -31,30 +42,21 @@ eul_gyro_only(:, 1) = [0; 0; 0];
 eul(:, 1) = [0; 0; 0];
 t(1) = 0;
 
-% gyro_bias(:, 1) = [0; 0; 0];
-% accel_bias(:,1) = [0; 0; 0];
-
-P = eye(4);
-sigma_gyro = 0.2; % assuming equal noise on each axis
+P = 10*eye(4);
+sigma_gyro = 0.075; % assuming equal noise on each axis
 Sigma_gyro = (sigma_gyro^2).*eye(3);
 
-sigma_accel_biases = 0.005;
-
-Q1 = (sigma_gyro^2).*eye(4);
-Q = Q1;
-% Q2 = (sigma_accel_biases^2).*eye(3);
-% Q = [Q1 zeros(4,3);
-%      zeros(3,4) Q2];
+% Q1 = (sigma_gyro^2).*eye(4);
+% Q = Q1;
 
 % assuming equal noise on each axis
-sigma_acc = 0.75; 
-sigma_mag = 2.0;
+sigma_acc = 0.5; 
+sigma_mag = 1.1;
 R = [(sigma_acc^2).*eye(3) zeros(3);
      zeros(3) (sigma_mag^2).*eye(3)];
 
 magnetic_dip_angle = deg2rad(-14.78); % deg, for auburn, al, from magnetic-declination.com
 magnetic_field_vec = [cos(magnetic_dip_angle) 0 sin(magnetic_dip_angle)]'./sqrt(cos(magnetic_dip_angle)^2 + sin(magnetic_dip_angle)^2); % ned
-% magnetic_field_vec = [0 1 0]'; 
 grav_vec = [0 0 -1]'; % ned
 
 % magnetic_field_vec = [0 cos(magnetic_dip_angle) -sin(magnetic_dip_angle)]'./sqrt(cos(magnetic_dip_angle)^2 + sin(magnetic_dip_angle)^2); % enu
@@ -64,24 +66,32 @@ for i = 1:length(accel(:, 1))-1
     t(i+1) = dt*i;
 
     % --- time update----
-    % Omega = [0            -gyro(i,1) -gyro(i,2) -gyro(i,3);
-    %          gyro(i,1)    0           gyro(i,3) -gyro(i,2);
-    %          gyro(i,2)    -gyro(i,3)  0          gyro(i,1);
-    %          gyro(i,3)     gyro(i,2)  -gyro(i,1) 0];
-    % gyro(i+1, :) = gyro(i+1, :) - gyro_bias(:, i)';
     Omega = [0  -gyro(i+1,:);
              gyro(i+1,:)' -vec3ToSkewSym(gyro(i+1,:))];
-    state_prop = cos(norm(gyro(i+1, :))*dt/2)*eye(4) + (2/(norm(gyro(i+1,:))))...
-                    *sin(norm(gyro(i+1,:))*dt/2)*Omega;
-    q_hat(:, i+1) = state_prop*q_hat(:,i);
+
+    % from stack overflow - integrating quaternion using angular rates
+    q_w_a = cos(norm(gyro(i+1, :))*dt/2);
+    q_w_v = sin(norm(gyro(i+1, :))*dt/2).*gyro(i+1,:)'/(norm(gyro(i+1,:)));
+    q_w = [q_w_a; q_w_v];
+
+    % state_prop = cos(norm(gyro(i+1, :))*dt/2)*eye(4) + (2/(norm(gyro(i+1,:))))...
+    %                 *sin(norm(gyro(i+1,:))*dt/2)*Omega;
+
+    gyro_int(:,i+1) = gyro_int(:, i) + gyro(i+1, :)'*dt;
+
+    % q_hat(:, i+1) = state_prop*q_hat(:,i);
+    q_hat(:, i+1) = quatmult(q_hat(:,i), q_w);
 
     % normalize quaternion
     q_hat(:, i+1) = q_hat(:, i+1)./norm(q_hat(:, i+1));
 
-    q_hat_gyro_only(:, i+1) = state_prop*q_hat_gyro_only(:, i);
+    % q_hat_gyro_only(:, i+1) = state_prop*q_hat_gyro_only(:, i);
+    q_hat_gyro_only(:, i+1) = quatmult(q_hat_gyro_only(:,i), q_w);
+
+
     % normalize quaternion
     q_hat_gyro_only(:, i+1) = q_hat_gyro_only(:, i+1)./norm(q_hat_gyro_only(:, i+1));    
-    eul_gyro_only(:, i+1) = rad2deg(unwrap(quat2eul(q_hat_gyro_only(:, i+1)', "XYZ")));
+    eul_gyro_only(:, i+1) = rad2deg(unwrap(quat2eul(q_hat_gyro_only(:, i+1)')));
 
 
     A_d = [1 (-dt/2)*gyro(i+1,1) (-dt/2)*gyro(i+1,2) (-dt/2)*gyro(i+1,3);
@@ -109,7 +119,8 @@ for i = 1:length(accel(:, 1))-1
 
     % rotate gravity and mag vectors into sensor's frame (this is the
     % nonlinear measurement model, h(x))
-    rot_mat = quatToRotMat(q_hat(:, i+1));
+    % rot_mat = quatToRotMat(q_hat(:, i+1));
+    rot_mat = quat2rotm(q_hat(:,i+1)');
     accel_hat = rot_mat'*grav_vec;
     mag_hat = rot_mat'*magnetic_field_vec;
     Y_hat = [accel_hat; mag_hat];
@@ -138,31 +149,34 @@ for i = 1:length(accel(:, 1))-1
     % normalize quaternion
     q_hat(:, i+1) = q_hat(:, i+1)./norm(q_hat(:, i+1));
 
-    eul(:, i+1) = rad2deg(unwrap(quat2eul(q_hat(:, i+1)', "XYZ")));
+    eul(:, i+1) = rad2deg(unwrap(quat2eul(q_hat(:, i+1)')));
 end
 
 
-figure
-plot(t, eul(1, :));
-hold on
-plot(t, eul_gyro_only(1,:));
-plot(gps_course_time, rad2deg(gps_course));
-% plot(t(1:end-1), true_orientation(:,1));
-legend("EKF", "Gyro Only", "GPS Course");
-title("Heading from North");
-
+% figure
+% plot(t, eul(1, :));
+% hold on
+% plot(t, eul_gyro_only(1,:));
+% % plot(t(1:end-1), true_orientation(:,1));
+% plot(t, rad2deg(gyro_int(3,:)));
+% legend("EKF", "Gyro Only", "Gyro Only (Euler)");
+% title("Rotation about North Axis");
+% 
 % figure
 % plot(t, eul(2, :));
 % hold on
 % plot(t, eul_gyro_only(2,:));
 % % plot(t(1:end-1), true_orientation(:,2));
-% legend("EKF", "Gyro Only");
-% title("Angle from East Axis");
-% 
-% figure
-% plot(t, eul(3, :));
-% hold on
+% plot(t, rad2deg(gyro_int(2,:)));
+% legend("EKF", "Gyro Only", "Gyro Only (Euler)");
+% title("Rotation about East Axis");
+
+figure
+plot(t, eul(3, :));
+hold on
 % plot(t, eul_gyro_only(1,:));
-% % plot(t(1:end-1), true_orientation(:,3));
-% legend("EKF", "Gyro Only", "GPS Course");
-% title("Angle from Down Axis");
+% plot(t(1:end-1), true_orientation(:,3));
+plot(gps_course_time, rad2deg(gps_course));
+% plot(t, rad2deg(gyro_int(1,:)));
+legend("EKF", "GPS Course");
+title("Heading");
