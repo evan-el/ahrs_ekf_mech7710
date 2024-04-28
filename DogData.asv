@@ -1,0 +1,42 @@
+clear all, clc
+
+addpath figs/
+addpath data/
+
+load("Dog_RosBag.mat");
+%%
+static = data.static;
+time = static.time; dt = time(1) - time(2);
+acc = [static.acc.X; static.acc.Y; static.acc.Z;];
+gyro = [static.omega.X; static.omega.Y; static.omega.Z;];
+mag = [static.mag.X; static.mag.Y; static.mag.Z;];
+
+
+
+P = eye(3);
+Qd = P/100;
+Ad = P;
+Rd = 1;
+
+X_est = [0 0 0]';
+C = eye(3);
+
+
+for i = 2:length(time)
+
+    % estimate
+    X_est(:,i) = Ad*X_est(:,i-1);
+    P = Ad*P*Ad + Qd;
+
+    % Measurement update
+    L = P*C'*(C*P*C' + Rd)^-1;
+    P = (eye(3) - L*C)*P;
+    X_est(:,i) = X_est(:,i) + L*((acc(:,i))-C*X_est(:,i));
+end
+
+%
+figure(1)
+clf(1)
+hold on
+plot(time,acc,time,X_est,'--','LineWidth',2)
+xlim([0,time(end)])
