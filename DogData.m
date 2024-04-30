@@ -1,4 +1,4 @@
-clear all, clc
+clear all, clc, close all, warning off
 
 % addpath figs/
 addpath Data/
@@ -11,7 +11,7 @@ accel = [static.acc.X; static.acc.Y; static.acc.Z;]';
 gyro = [static.omega.X; static.omega.Y; static.omega.Z;]';
 mag = [static.mag.X; static.mag.Y; static.mag.Z;]';
 
-magCal = data.static;
+magCal = data.magCal;
 
 magCalmag = [magCal.mag.X; magCal.mag.Y; magCal.mag.Z;]';
 magCalAcc = [magCal.acc.X; magCal.acc.Y; magCal.acc.Z;]';
@@ -22,7 +22,7 @@ accCalVar = mean(var(magCalAcc));
 gyroCalVar = mean(var(magCalGyro));
 
 %
-load("KGain.mat");
+% load("KGainMagCal.mat");
 %
 % copy and paste b/c lazy
 % X = [acc(:,1:end-2);
@@ -72,7 +72,7 @@ eul(:, 1) = [0; 0; 0];
 t(1) = 0;
 
 P = 10*eye(4);
-sigma_gyro = 0.075; % assuming equal noise on each axis
+sigma_gyro = 0.075*10; % assuming equal noise on each axis
 Sigma_gyro = (gyroCalVar).*eye(3);
 
 % Q1 = (sigma_gyro^2).*eye(4);
@@ -84,7 +84,7 @@ Sigma_gyro = (gyroCalVar).*eye(3);
 R = [(accCalVar).*eye(3) zeros(3);
      zeros(3) (magCalVar).*eye(3)];
 
-magnetic_dip_angle = deg2rad(-14.78); % deg, for auburn, al, from magnetic-declination.com
+magnetic_dip_angle = deg2rad(-14.78)*1; % deg, for auburn, al, from magnetic-declination.com
 magnetic_field_vec = [cos(magnetic_dip_angle) 0 sin(magnetic_dip_angle)]'./sqrt(cos(magnetic_dip_angle)^2 + sin(magnetic_dip_angle)^2); % ned
 grav_vec = [0 0 -1]'; % ned
 
@@ -172,7 +172,7 @@ for i = 1:length(accel(:, 1))-3
     % compute Kalman gain
     v = Y - Y_hat;
     S = H*P*H' + R;
-    % K = P*H'*inv(S);
+    K = P*H'*inv(S);
 
     % apply measurement correction to state and covariance
     corrected_state = q_hat(:, i+1) + K*v;
@@ -185,7 +185,7 @@ for i = 1:length(accel(:, 1))-3
     eul(:, i+1) = rad2deg(unwrap(quat2eul(q_hat(:, i+1)')));
 end
 
-% save('KGain','K')
+% save('KGainMagCal','K')
 
 % figure
 % plot(t, eul(1, :));
@@ -204,19 +204,33 @@ end
 % plot(t, rad2deg(gyro_int(2,:)));
 % legend("EKF", "Gyro Only", "Gyro Only (Euler)");
 % title("Rotation about East Axis");
-
+%%
 figure(1)
 clf(1)
 hold on
 for i = 1:3
 subplot(3,1,i)
-plot(t(1:end), eul(i,:),t(1:end), sgolayfilt(eul(i,:),1,21),"--",...
+plot(t(1:end), eul(i,:),...
     'Linewidth',2);
 xlim([0 t(end)])
 end
+
+
+% figure(2)
+% clf(2)
+% hold on
+% 
+% for i = 1:3
+%     subplot(3,1,i)
+%     plot(t(1:end), cumtrapz(gyro(1:end-2,i)/dt,1),...
+%     'Linewidth',2);
+%     xlim([0 t(end)])
+% end
+
+
 % plot(t, eul_gyro_only(1,:));
 % plot(t(1:end-1), true_orientation(:,3));
 % plot(t(1:end-1), rad2deg(gps_course));
 % plot(t, rad2deg(gyro_int(1,:)));
-legend("EKF", "Post-Filtered");
+% legend("EKF", "Post-Filtered");
 % title("Heading");
