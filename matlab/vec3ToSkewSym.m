@@ -1,0 +1,9 @@
+function skew_sym_mat = vec3ToSkewSym(vec)
+%VEC3TOSKEWSYM Summary of this function goes here
+%   Detailed explanation goes here
+    
+    skew_sym_mat = [0 -vec(3) vec(2);
+                    vec(3) 0 -vec(1);
+                    -vec(2) vec(1) 0];
+end
+
