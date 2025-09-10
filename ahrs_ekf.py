@@ -51,20 +51,13 @@ class AhrsEKF:
         omega_skew_sym = vec3ToSkewSym(gyro)
         Omega_row1 = np.hstack(([0], -gyro.T))
         Omega_block2 = np.column_stack((gyro.T, vec3ToSkewSym(gyro)))
-        #print(Omega_row1)
-        #print(Omega_block2)
         Omega = np.vstack((Omega_row1, Omega_block2))
-        #print(Omega)
 
         q_w_a = np.cos(np.linalg.norm(gyro)*dt/2)
         q_w_v = np.sin(np.linalg.norm(gyro)*dt/2)*gyro/np.linalg.norm(gyro)
-        #print(q_w_a)
-        #print(q_w_v)
         q_w = np.hstack((q_w_a, q_w_v)).T
-        #print(q_w)
         self.q_hat = quatmult(self.q_hat, q_w)
         self.q_hat = self.q_hat[0]
-        #print(self.q_hat)
 
         self.A_d = np.array([[1, (-dt/2)*gyro[0], (-dt/2)*gyro[1], (-dt/2)*gyro[2]],
                              [(dt/2)*gyro[0], 1, (dt/2)*gyro[2], (-dt/2)*gyro[1]],
@@ -79,27 +72,20 @@ class AhrsEKF:
 
         P = np.matmul(np.matmul(self.A_d, self.P), self.A_d.T) + Q
 
-        #print(P)
-
     def measurement_update(self, accel, mag):
         accel_normalized = accel/np.linalg.norm(accel)
         mag_normalized = mag/np.linalg.norm(mag)
 
         rot_mat = quat2rot(self.q_hat)
-        # print(rot_mat)
         accel_hat = np.matmul(rot_mat.T,self.grav_vec.T)
         mag_hat = np.matmul(rot_mat.T,self.magnetic_field_vec.T)
         Y_hat = np.hstack((accel_hat, mag_hat))
-        #print(Y_hat)
 
-        #print(self.q_hat[1:])
         u_g = np.cross(self.grav_vec, self.q_hat[1:])
         u_r = np.cross(self.magnetic_field_vec, self.q_hat[1:])
-        #print(u_g[:, None])
         skew_sym_first_row = vec3ToSkewSym(u_g + self.q_hat[0]*self.grav_vec)
         skew_sym_second_row = vec3ToSkewSym(u_r + self.q_hat[0]*self.magnetic_field_vec)
         H_12_block = skew_sym_first_row + np.dot(self.q_hat[1:], self.grav_vec)*np.identity(3) - np.matmul(self.grav_vec, self.q_hat[1:].T)
-        #print(H_12_block)
         H_22_block = skew_sym_second_row +np.dot(self.q_hat[1:], self.magnetic_field_vec)*np.identity(3) - np.matmul(self.magnetic_field_vec, self.q_hat[1:].T)
         H_row1_block = np.hstack((u_g[:, None], H_12_block))
         H_row2_block = np.hstack((u_r[:, None], H_22_block))
@@ -108,8 +94,6 @@ class AhrsEKF:
         Y = np.hstack((accel_normalized, mag_normalized))
 
         # compute Kalman gain
-        #print(Y)
-        #print(Y_hat)
         v = Y - Y_hat
         S = np.matmul(np.matmul(H, self.P), H.T) + self.R
         K = np.matmul(np.matmul(self.P, H.T), np.linalg.inv(S))
