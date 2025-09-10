@@ -4,11 +4,11 @@ A python implementation of an AHRS (Attitude and Heading Reference System) Exten
 ## Test Platform
 The test platform was a Unitree quadruped robot equipped with a Sparkfun IMU.
 
-![unitree robot dog](robot_dog.png)
+![unitree robot dog](docs/robot_dog.png)
 
 An example of the filter output in degrees while rolling the already pitched body of the dog is shown below. The heading result was validated by comparing to the heading from an iPhone compass app.
 
-![example ekf results](ahrs_ekf_example_results_plot.jpg)
+![example ekf results](docs/ahrs_ekf_example_results_plot.jpg)
 
 ## References
 [1] https://ahrs.readthedocs.io/en/latest/filters/ekf.html
