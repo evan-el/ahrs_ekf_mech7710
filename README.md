@@ -15,4 +15,5 @@ This filter propagates the covariance for all four quaternion elements, which wo
 
 ## References
 [1] https://ahrs.readthedocs.io/en/latest/filters/ekf.html
+
 [2] Markley, F. L. and Crassidis, J. L., Fundamentals of Spacecraft Attitude Determination and Control. 2014. doi:10.1007/978-1-4939-0802-8.
